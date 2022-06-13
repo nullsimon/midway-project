@@ -1,8 +1,10 @@
-import { Inject, Controller, Get, Query, Post, Body } from '@midwayjs/decorator';
+import { Inject, Controller, Get, Post, Body } from '@midwayjs/decorator';
 import { Context } from '@midwayjs/koa';
 import {UserModel} from '../model/user.model';
 import {UserLoginDTO} from '../dto/user.dto';
 import { UserEntity } from '../entity/user.entity';
+import { JwtService } from '@midwayjs/jwt';
+import { JwtPassportMiddleware } from '../middleware/jwt.middleware';
 
 @Controller('/api/users')
 export class UserController {
@@ -11,6 +13,9 @@ export class UserController {
 
   @Inject()
   userModel: UserModel;
+
+  @Inject()
+    jwt: JwtService;
 
   init() {
     let user = new UserEntity();
@@ -21,8 +26,10 @@ export class UserController {
     console.log("init user:", userResult);
   }
 
-  @Get('/')
-  async getUser(@Query('id') id:number) {
+  @Get('/' , { middleware: [JwtPassportMiddleware] })
+  async getUser() {
+    console.log(this.ctx.state);
+    let id = this.ctx.state.user.user.id;
     const user = await this.userModel.getUserByID(id);
     return { success: true, message: 'OK', data: user };
   }
@@ -31,11 +38,25 @@ export class UserController {
   async login(@Body() login: UserLoginDTO) {
     const {username, password} = login;
     const user = await this.userModel.getUserByUsernameAndPassword(username, password);
+    let token = await this.jwt.sign({user})
     if (user != null) {
-        return { success: true, message: 'OK', data: user };
+        return { 
+            code: 200,
+            result: "success",
+            message: "登录成功",
+            data: {
+                token: token,
+            }
+        };
     }
-    return { success: false, message: 'FAIL', data: null };
+    return { 
+        code: 400,
+        result: 'error', 
+        message: '账号或密码不正确',
+        data: null 
+    };
   }
+
 
 
   @Post('/')
